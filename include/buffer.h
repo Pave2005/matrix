@@ -12,7 +12,7 @@ class MatrixBuffer
 
         MatrixBuffer (int size = 0) : size_(size), used_(0), data_(nullptr)
         {
-            int memorySize = size * sizeof (T);
+            int memorySize = size * sizeof(T);
             data_ = (size == 0) ? nullptr : static_cast<T*>(::operator new [] (memorySize));
         }
 

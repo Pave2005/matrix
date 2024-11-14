@@ -25,3 +25,8 @@ TEST(test4, size4)
 {
 	test_funcs::run_test("/test4/size4");
 }
+
+TEST(test5, size100)
+{
+	test_funcs::run_test("/test5/size100");
+}

@@ -1,3 +1,3 @@
 #pragma once
 
-const double ACR = 1e-3;
+const double ACR = 1e-6;

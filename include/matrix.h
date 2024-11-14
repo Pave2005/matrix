@@ -166,6 +166,7 @@ double Linear::Determinant::gauss (const Linear::Matrix<double>& matrix)
 		Linear::Matrix<double> tmp = matrix;
 
 		ans *= tmp.direct_gauss();
+		if (std::fabs(ans) <= ACR) return 0;
 
 		for (int i = 0; i < nRows; ++i) ans *= tmp.at(i, i);
 

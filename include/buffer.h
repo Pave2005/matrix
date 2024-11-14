@@ -28,4 +28,11 @@ class MatrixBuffer
             for (int i = 0; i < used_; ++i) data_[i].~T();
             operator delete [] (data_);
         }
+
+    public:
+        MatrixBuffer (const MatrixBuffer& rhs) = delete;
+        MatrixBuffer (MatrixBuffer&& rhs)      = delete;
+
+        MatrixBuffer& operator= (MatrixBuffer&& rhs)      = delete;
+        MatrixBuffer& operator= (const MatrixBuffer& rhs) = delete;
 };

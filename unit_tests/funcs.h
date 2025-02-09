@@ -1,19 +1,19 @@
 #pragma once
 
-#include <iostream>
-#include <string>
-#include <fstream>
+#include "matrix.h"
 
 #include <gtest/gtest.h>
 
-#include "matrix.h"
+#include <iostream>
+#include <string>
+#include <fstream>
 
 namespace test_funcs
 {
 	double get_result (const std::string& filename)
     {
         std::ifstream file(filename);
-        if (!file) throw std::runtime_error("file error");
+        if (file.bad()) throw std::runtime_error("file stream error");
 
         int size = 0;
         file >> size;
@@ -21,8 +21,12 @@ namespace test_funcs
         Linear::Matrix<double> matrix {size};
 
         for (size_t row = 0; row < size; ++row)
+        {
             for (size_t col = 0; col < size; ++col)
+            {
                 file >> matrix.at(row, col);
+            }
+        }
 
         file.close();
 
@@ -34,14 +38,18 @@ namespace test_funcs
         std::ifstream answer_file(filename);
 
         double ans = 0.0;
-        answer_file >> ans;
+
+        if (answer_file.good())
+            answer_file >> ans;
+        else
+            throw std::runtime_error("file stream error");
 
         answer_file.close();
 
         return ans;
     }
 
-	void run_test (const std::string& test_name)
+	int run_test (const std::string& test_name)
 	{
         try
         {
@@ -55,11 +63,13 @@ namespace test_funcs
             if (std::fabs(res - ans) <= ACR) res = ans;
 
             EXPECT_EQ(res, ans);
+
+            return 0;
         }
         catch (std::exception& expt)
         {
-            std::cout << expt.what() << std::endl;
-            exit (1);
+            std::cerr << expt.what() << std::endl;
+            return 1;
         }
 	}
 }

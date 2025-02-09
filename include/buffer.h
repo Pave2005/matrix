@@ -6,11 +6,11 @@ template <typename T>
 class MatrixBuffer
 {
     protected:
-        int size_ = 0;
-        int used_ = 0;
+        size_t size_ = 0;
+        size_t used_ = 0;
         T*  data_ = nullptr;
 
-        MatrixBuffer (int size = 0) : size_(size), used_(0), data_(nullptr)
+        MatrixBuffer (size_t size = 0) : size_(size), used_(0), data_(nullptr)
         {
             int memorySize = size * sizeof(T);
             data_ = (size == 0) ? nullptr : static_cast<T*>(::operator new [] (memorySize));
@@ -30,9 +30,33 @@ class MatrixBuffer
         }
 
     public:
-        MatrixBuffer (const MatrixBuffer& rhs) = delete;
-        MatrixBuffer (MatrixBuffer&& rhs)      = delete;
+        MatrixBuffer (const MatrixBuffer& rhs) : MatrixBuffer<T>(rhs.size_)
+        {
+            std::copy(rhs.data_, rhs.data_ + rhs.size_, data_);
 
-        MatrixBuffer& operator= (MatrixBuffer&& rhs)      = delete;
-        MatrixBuffer& operator= (const MatrixBuffer& rhs) = delete;
+            this->used_ = rhs.used_;
+        }
+
+        MatrixBuffer& operator= (const MatrixBuffer& rhs)
+        {
+            MatrixBuffer lhs {rhs};
+            size_ = rhs.size_;
+            used_ = rhs.used_;
+
+            data_ = std::exchange(lhs.data_, nullptr );
+
+            return *this;
+        }
+
+
+        MatrixBuffer (MatrixBuffer&& rhs) noexcept : size_(rhs.size_), used_(rhs.used_),
+                                                     data_(std::exchange(rhs.data_, nullptr)) {}
+
+        MatrixBuffer& operator= (MatrixBuffer&& rhs) noexcept
+        {
+            std::swap (size_, rhs.size_);
+            std::swap (used_, rhs.used_);
+            std::swap (data_, rhs.data_);
+            return *this;
+        }
 };

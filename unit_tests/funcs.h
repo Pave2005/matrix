@@ -15,7 +15,7 @@ namespace test_funcs
         std::ifstream file(filename);
         if (!file) throw std::runtime_error("file error");
 
-        size_t size = 0;
+        int size = 0;
         file >> size;
 
         Linear::Matrix<double> matrix {size};

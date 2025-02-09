@@ -3,7 +3,7 @@
 int main()
 try
 {
-    size_t size = 0;
+    int size = 0;
     std::cin >> size;
 
     Linear::Matrix<double> matrix {size};

@@ -13,10 +13,11 @@ namespace test_funcs
 	double get_result (const std::string& filename)
     {
         std::ifstream file(filename);
-        if (file.bad()) throw std::runtime_error("file stream error");
+        if (file.bad()) throw std::runtime_error("file error");
 
-        int size = 0;
+        size_t size = 0;
         file >> size;
+        if (!file.good()) throw std::runtime_error("stream error: invalid size");
 
         Linear::Matrix<double> matrix {size};
 
@@ -25,6 +26,7 @@ namespace test_funcs
             for (size_t col = 0; col < size; ++col)
             {
                 file >> matrix.at(row, col);
+                if (!file.good()) throw std::runtime_error("stream error: invalid element");
             }
         }
 
@@ -39,10 +41,8 @@ namespace test_funcs
 
         double ans = 0.0;
 
-        if (answer_file.good())
-            answer_file >> ans;
-        else
-            throw std::runtime_error("file stream error");
+        answer_file >> ans;
+        if (!answer_file.good()) throw std::runtime_error("stream error: invalid file");
 
         answer_file.close();
 

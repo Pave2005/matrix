@@ -3,10 +3,9 @@
 int main()
 try
 {
-    if (std::cin.bad()) throw std::runtime_error("stream error");
-
-    int size = 0;
+    size_t size = 0;
     std::cin >> size;
+    if (!std::cin.good()) throw std::runtime_error("stream error: invalid size");
 
     Linear::Matrix<double> matrix {size};
 
@@ -15,6 +14,7 @@ try
         for (size_t col = 0; col < size; ++col)
         {
             std::cin >> matrix.at(row, col);
+            if (!std::cin.good()) throw std::runtime_error("stream error: invalid element");
         }
     }
 

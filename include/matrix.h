@@ -9,10 +9,12 @@
 #include <iomanip>
 #include <exception>
 #include <fstream>
+#include <algorithm>
+#include <iterator>
 
 namespace Linear
 {
-	using int_pair = std::pair<int, int>;
+	using pair = std::pair<size_t, size_t>;
 
 	template <typename T>
 	class Matrix;
@@ -34,27 +36,27 @@ namespace Linear
 	class Matrix : private MatrixBuffer<T>
     {
 		private:
-			int nRows_ = 0;
-            int nCols_ = 0;
+			size_t nRows_ = 0;
+            size_t nCols_ = 0;
 
 			using MatrixBuffer<T>::size_;
-			using MatrixBuffer<T>::used_;
 			using MatrixBuffer<T>::data_;
 
 			void reverse_gauss ();
 
 		public:
-			Matrix (int rows, int cols, T value = T {});
+			Matrix (size_t rows, size_t cols, T value = T {});
 
-			Matrix (int rows = 0) : Matrix (rows, rows) {}
+			Matrix (size_t rows = 0) : Matrix (rows, rows) {}
 
-			~Matrix () = default;
-
-			Matrix (int rows, int cols, std::vector<T>& vec);
+			template <class InputIt1, class InputIt2>
+			Matrix (size_t rows, size_t cols, InputIt1 begin_, InputIt2 end_);
 
 			Matrix (const Matrix& rhs);
 
 			Matrix (Matrix&& rhs);
+
+			~Matrix () = default;
 
 			Matrix& operator=  (const Matrix& rhs);
 			Matrix& operator=  (Matrix&& rhs);
@@ -67,14 +69,14 @@ namespace Linear
 
 			operator std::vector<T> ();
 
-			void resize 	 (int_pair shape);
-			void transpose 	 ();
-			void negate 	 ();
-			void clear 		 ();
+			void resize (pair shape);
+			void transpose ();
+			void negate ();
+			void clear ();
 			void diagonalize ();
 
 			int  direct_gauss ();
-			void make_eye 	  ();
+			void make_eye ();
 
 			void swap_rows 	 (int lhs, int rhs);
 			void add_rows	 (int src, int dest, T factor);
@@ -87,13 +89,13 @@ namespace Linear
 			static Matrix zeros (int n);
 			static Matrix eye 	(int n);
 
-			int_pair shape () const;
-			int 	 size  () const;
+			pair     shape () const;
+			int 	 size  () const noexcept;
 			T 		 trace () const;
-			const T& at    (int i, int j) const;
+			const T& at    (size_t i, size_t j) const;
 			void 	 dump  (std::ostream& stream) const;
 
-			T& at (int i, int j);
+			T& at (size_t i, size_t j);
 
 			T   determinant (Determinant::Type type = Determinant::Type::STD) const;
 			int rank        () const;
@@ -121,8 +123,8 @@ template <typename T>
 T Linear::Determinant::std_alg (const Linear::Matrix <T>& matrix)
 {
 	auto shape = matrix.shape();
-	int nRows  = shape.first;
-    int nCols  = shape.second;
+	size_t nRows  = shape.first;
+    size_t nCols  = shape.second;
 
 	if (nRows != nCols) throw std::invalid_argument("Attempt to calculate the determinant of a non-square matrix.");
 
@@ -133,13 +135,13 @@ T Linear::Determinant::std_alg (const Linear::Matrix <T>& matrix)
 	else
     {
 		T ans {};
-		for (int i = 0; i < nCols; ++i)
+		for (size_t i = 0; i < nCols; ++i)
         {
-			Linear::Matrix <T> tmp {nRows - 1, nCols - 1};
+			Linear::Matrix<T> tmp {nRows - 1, nCols - 1};
 
-			for (int j = 0; j < nRows - 1; ++j)
+			for (size_t j = 0; j < nRows - 1; ++j)
             {
-				for (int k = 0; k < nCols; ++k)
+				for (size_t k = 0; k < nCols; ++k)
                 {
 					if      (k < i)  tmp.at(j, k) = matrix.at(j + 1, k);
 					else if (k == i) continue;
@@ -185,56 +187,44 @@ template <typename T>
 void Linear::Matrix<T>::reverse_gauss ()
 {
 	int columnStartValue = nCols_ - 1;
-    for (int i = std::min(nRows_ - 1, columnStartValue); i >= 0; --i)
+    for (size_t i = std::min(nRows_ - 1, columnStartValue); i >= 0; --i)
 	{
         if (std::fabs(at(i, i)) >= ACR)
 		{
-            for (int j = i - 1; j >= 0; --j) add_rows(i, j, - (at(j, i) / at(i, i)));
+            for (size_t j = i - 1; j >= 0; --j) add_rows(i, j, - (at(j, i) / at(i, i)));
 		}
 	}
 }
 
 template <typename T>
-Linear::Matrix <T>::Matrix (int rows, int cols, T value) : MatrixBuffer<T>(rows * cols),
-	                                                       nRows_(rows),
-	                                                       nCols_(cols)
+Linear::Matrix <T>::Matrix (size_t rows, size_t cols, T value) : MatrixBuffer<T>(rows * cols), nRows_(rows), nCols_(cols)
 {
-	if (nRows_ < 0 || nCols_ < 0) throw std::invalid_argument("Incorrect number of rows or columns of the matrix.");
-
-	else if (nRows_ * nCols_ == 0)
+	if (size_ == 0) // проверка для того, чтобы не было ошибки, например, размер матрицы: 0 x m, m > 0, что эквивалентно матрице 0 x 0
 	{
 		nRows_ = 0;
 		nCols_ = 0;
+		return;
 	}
-	else
+
+	for (size_t i = 0; i < size_; ++i)
 	{
-		for (int i = 0; i < nRows_ * nCols_; ++i)
-		{
-			new (data_ + i) T {value};
-			++size_;
-		}
+		new (data_ + i) T {value};
 	}
 }
 
 template <typename T>
-Linear::Matrix <T>::Matrix (int rows, int cols, std::vector<T> &vec) : Matrix (rows, cols)
+template <class InputIt1, class InputIt2>
+Linear::Matrix<T>::Matrix (size_t rows, size_t cols, InputIt1 begin_, InputIt2 end_) : Matrix (rows, cols)
 {
-	if (vec.size() != nRows_ * nCols_) throw std::invalid_argument("Vector size is not matched with matrix size.");
+	size_t size = std::distance(begin_, end_);
+	if (size != size_) throw std::invalid_argument("Vector size is not matched with matrix size.");
 
-	for (int pos = 0; pos < std::min<int>(nRows_ * nCols_, vec.size()); ++pos)
-		at(pos / nCols_, pos % nCols_) = vec[pos];
+	for (size_t pos = 0; pos < std::min<size_t>(size_, size); ++pos)
+		at(pos / nCols_, pos % nCols_) = *(begin_ + pos);
 }
 
 template <typename T>
 Linear::Matrix<T>::Matrix (const Matrix& rhs) : MatrixBuffer<T>(rhs), nRows_(rhs.nRows_), nCols_(rhs.nCols_) {}
-
-template <typename T>
-Linear::Matrix<T>::Matrix (Matrix&& rhs)
-{
-	std::swap(nRows_, rhs.nRows_);
-	std::swap(nCols_, rhs.nCols_);
-	MatrixBuffer <T>::swap(rhs);
-}
 
 template <typename T>
 Linear::Matrix<T>& Linear::Matrix <T>::operator= (const Matrix& rhs)
@@ -242,9 +232,22 @@ Linear::Matrix<T>& Linear::Matrix <T>::operator= (const Matrix& rhs)
 	if (this != &rhs)
 	{
 		Matrix tmp {rhs};
-		std::swap(*this, tmp);
+
+		nCols_ = rhs.nCols_;
+		nRows_ = rhs.nRows_;
+		size_  = rhs.size_;
+
+		std::swap(data_, tmp.data_);
 	}
 	return *this;
+}
+
+template <typename T>
+Linear::Matrix<T>::Matrix (Matrix&& rhs)
+{
+	std::swap(nRows_, rhs.nRows_);
+	std::swap(nCols_, rhs.nCols_);
+	MatrixBuffer <T>::swap(rhs);
 }
 
 template <typename T>
@@ -264,15 +267,7 @@ bool Linear::Matrix<T>::operator== (const Matrix& rhs) const
 {
 	if (shape() != rhs.shape()) return false;
 
-	for (int i = 0; i < nRows_; ++i)
-	{
-		for (int j = 0; j < nCols_; ++j)
-		{
-			if (at(i, j) != rhs.at(i, j)) return false;
-		}
-	}
-
-	return true;
+	return std::equal(data_, data_ + size(), rhs.data_, rhs.data_ + rhs.size());
 }
 
 template <typename T>
@@ -281,8 +276,8 @@ bool Linear::Matrix<T>::operator!= (const Matrix& rhs) const { return !(*this ==
 template <typename T>
 Linear::Matrix <T>& Linear::Matrix<T>::operator*= (const T number)
 {
-	for (int i = 0; i < nRows_; ++i)
-		for (int j = 0; j < nCols_; ++j)
+	for (size_t i = 0; i < nRows_; ++i)
+		for (size_t j = 0; j < nCols_; ++j)
 			at(i, j) *= number;
 
 	return *this;
@@ -291,17 +286,17 @@ Linear::Matrix <T>& Linear::Matrix<T>::operator*= (const T number)
 template <typename T>
 Linear::Matrix <T>& Linear::Matrix<T>::operator*= (const Matrix& rhs)
 {
-	if (this->nCols_ != rhs.nRows_)
+	if (nCols_ != rhs.nRows_)
 	{
 		throw std::invalid_argument("Attempt of multiplication of matrix with inappropriate size.");
 	}
 	else
 	{
-		Matrix <T> ans {this->nRows_, rhs.nCols_};
+		Matrix <T> ans {nRows_, rhs.nCols_};
 
-		for (int i = 0; i < this->nRows_; ++i)
-			for (int j = 0; j < rhs.nCols_; ++j)
-				for (int k = 0; k < this->nCols_; ++k)
+		for (size_t i = 0; i < nRows_; ++i)
+			for (size_t j = 0; j < rhs.nCols_; ++j)
+				for (size_t k = 0; k < nCols_; ++k)
 					ans.at(i, j)+= at (i, k) * rhs.at (k, j);
 
 		*this = std::move(ans);
@@ -319,8 +314,8 @@ Linear::Matrix<T>& Linear::Matrix<T>::operator+= (const Matrix& rhs)
 	}
 	else
 	{
-		for (int i = 0; i < nRows_; ++i)
-			for (int j = 0; j < nCols_; ++j)
+		for (size_t i = 0; i < nRows_; ++i)
+			for (size_t j = 0; j < nCols_; ++j)
 				at(i, j) += rhs.at(i, j);
 	}
 
@@ -336,8 +331,8 @@ Linear::Matrix<T>& Linear::Matrix<T>::operator-= (const Matrix& rhs)
 	}
 	else
 	{
-		for (int i = 0; i < nRows_; ++i)
-			for (int j = 0; j < nCols_; ++j)
+		for (size_t i = 0; i < nRows_; ++i)
+			for (size_t j = 0; j < nCols_; ++j)
 				at(i, j) -= rhs.at(i, j);
 	}
 
@@ -348,20 +343,20 @@ template <typename T>
 Linear::Matrix<T>::operator std::vector<T> ()
 {
 	std::vector<T> ans {};
-	for (int i = 0; i < nRows_; ++i)
-		for (int j = 0; j < nCols_; ++j)
+	for (size_t i = 0; i < nRows_; ++i)
+		for (size_t j = 0; j < nCols_; ++j)
 			ans.push_back(at(i, j));
 
 	return ans;
 }
 
 template <typename T>
-void Linear::Matrix<T>::resize (int_pair shape)
+void Linear::Matrix<T>::resize (pair shape)
 {
 	Matrix<T> ans {shape.first, shape.second};
 
-	for (int i = 0; i < std::min<int>(shape.first, nRows_); ++i)
-		for (int j = 0; j < std::min<int>(shape.second, nCols_); ++j)
+	for (size_t i = 0; i < std::min<size_t>(shape.first, nRows_); ++i)
+		for (size_t j = 0; j < std::min<size_t>(shape.second, nCols_); ++j)
 			ans.at(i, j) = at(i, j);
 
 	*this = ans;
@@ -372,8 +367,8 @@ void Linear::Matrix<T>::transpose ()
 {
 	Matrix <T> tmp {nCols_, nRows_};
 
-	for (int i = 0; i < nRows_; ++i)
-		for (int j = 0; j < nCols_; ++j)
+	for (size_t i = 0; i < nRows_; ++i)
+		for (size_t j = 0; j < nCols_; ++j)
 			tmp.at(j, i) = at(i, j);
 
 	*this = std::move(tmp);
@@ -382,8 +377,8 @@ void Linear::Matrix<T>::transpose ()
 template <typename T>
 void Linear::Matrix<T>::negate ()
 {
-	for (int i = 0; i < nRows_; ++i)
-		for (int j = 0; j < nCols_; ++j)
+	for (size_t i = 0; i < nRows_; ++i)
+		for (size_t j = 0; j < nCols_; ++j)
 			at(i, j) = - 1 * at(i, j);
 }
 
@@ -401,11 +396,11 @@ template <typename T>
 int Linear::Matrix<T>::direct_gauss ()
 {
 	int gaussFactor = 1;
-	for (int i = 0; i < std::min<int>(nRows_, nCols_) - 1; ++i)
+	for (size_t i = 0; i < std::min<size_t>(nRows_, nCols_) - 1; ++i)
 	{
 		T max_elem = at(i, i);
-		int max_indx = i;
-		for (int j = i + 1; j < nRows_; ++j)
+		size_t max_indx = i;
+		for (size_t j = i + 1; j < nRows_; ++j)
 		{
 			if (std::fabs(at(j, i)) > std::fabs(max_elem))
 			{
@@ -424,7 +419,7 @@ int Linear::Matrix<T>::direct_gauss ()
 			swap_rows(i, max_indx);
 		}
 
-		for (int j = i + 1; j < nRows_; ++j)
+		for (size_t j = i + 1; j < nRows_; ++j)
 		{
 			double factor = - (at(j, i) / at(i, i));
 			add_rows(i, j, factor);
@@ -463,7 +458,7 @@ void Linear::Matrix<T>::swap_rows (int lhs, int rhs)
 	}
 	else
 	{
-		for (int i = 0; i < nCols_; ++i) std::swap(at(lhs, i), at(rhs, i));
+		for (size_t i = 0; i < nCols_; ++i) std::swap(at(lhs, i), at(rhs, i));
 	}
 }
 
@@ -476,7 +471,7 @@ void Linear::Matrix<T>::add_rows (int src, int dest, T factor)
 	}
 	else
 	{
-		for (int i = 0; i < nCols_; ++i) at(dest, i) += at(src, i) * factor;
+		for (size_t i = 0; i < nCols_; ++i) at(dest, i) += at(src, i) * factor;
 	}
 }
 
@@ -510,7 +505,7 @@ void Linear::Matrix<T>::swap_cols (int lhs, int rhs)
 	}
 	else
 	{
-		for (int i = 0;  i < nRows_; ++i) std::swap(at(i, lhs), at(i, rhs));
+		for (size_t i = 0;  i < nRows_; ++i) std::swap(at(i, lhs), at(i, rhs));
 	}
 }
 
@@ -523,14 +518,14 @@ void Linear::Matrix<T>::add_cols (int src, int dest, T factor)
 	}
 	else
 	{
-		for (int i = 0; i < nRows_; ++i) at(i, dest) += at(i, src) * factor;
+		for (size_t i = 0; i < nRows_; ++i) at(i, dest) += at(i, src) * factor;
 	}
 }
 
 template <typename T>
 void Linear::Matrix<T>::append_cols (Matrix<T>& add_matrix, bool inFront)
 {
-	if (add_matrix.nRows_ != this->nRows_) throw std::invalid_argument("Rows numbers do not match.");
+	if (add_matrix.nRows_ != nRows_) throw std::invalid_argument("Rows numbers do not match.");
 
     transpose();
     auto matrix_vec     = static_cast<std::vector <T>>(*this);
@@ -568,34 +563,34 @@ template <typename T>
 Linear::Matrix<T> Linear::Matrix<T>::eye (int n)
 {
 	Matrix <T> tmp {n};
-	for (int i = 0; i < n; ++i) tmp.at(i, i) = static_cast<T>(1);
+	for (size_t i = 0; i < n; ++i) tmp.at(i, i) = static_cast<T>(1);
 
 	return tmp;
 }
 
 template <typename T>
-Linear::int_pair Linear::Matrix<T>::shape () const
+Linear::pair Linear::Matrix<T>::shape () const
 {
-	return int_pair {nRows_, nCols_};
+	return pair {nRows_, nCols_};
 }
 
 template <typename T>
-int Linear::Matrix <T>::size () const
+int Linear::Matrix <T>::size () const noexcept
 {
-	return nRows_ * nCols_;
+	return size_;
 }
 
 template <typename T>
 T Linear::Matrix<T>::trace () const
 {
 	T ans {};
-	for (int i = 0; i < std::min<int>(nRows_, nCols_); ++i) ans += at(i, i);
+	for (size_t i = 0; i < std::min<size_t>(nRows_, nCols_); ++i) ans += at(i, i);
 
 	return ans;
 }
 
 template <typename T>
-const T& Linear::Matrix<T>::at (int i, int j) const
+const T& Linear::Matrix<T>::at (size_t i, size_t j) const
 {
 	if (i >= nRows_ || j >= nCols_) throw std::invalid_argument("Incorrect rows/cols number value.");
 	else 							return data_[i * nCols_ + j];
@@ -604,18 +599,20 @@ const T& Linear::Matrix<T>::at (int i, int j) const
 template <typename T>
 void Linear::Matrix<T>::dump (std::ostream& stream) const
 {
-	if (stream.bad()) throw std::runtime_error("stream error");
-
 	stream.precision(2);
-	for (int i = 0; i < nRows_; ++i)
+	for (size_t i = 0; i < nRows_; ++i)
 	{
-		for (int j = 0; j < nCols_; ++j) stream << std::left << std::setw(10) << at(i, j);
+		for (size_t j = 0; j < nCols_; ++j)
+		{
+			stream << std::left << std::setw(10) << at(i, j);
+			if (!stream.good()) throw std::runtime_error("stream error: invalid element");
+		}
 		stream << std::endl;
 	}
 }
 
 template <typename T>
-T& Linear::Matrix<T>::at (int i, int j)
+T& Linear::Matrix<T>::at (size_t i, size_t j)
 {
 	return const_cast<T&>(static_cast<const Matrix<T>*>(this)->at(i, j));
 }
@@ -641,7 +638,7 @@ int Linear::Matrix<T>::rank () const
 	Matrix<T>tmp = *this;
 	tmp.make_eye(false);
 	int ans = 0;
-	for (int i = 0; i < std::min<int>(nRows_, nCols_); ++i)
+	for (size_t i = 0; i < std::min<size_t>(nRows_, nCols_); ++i)
 	{
 		if (std::fabs(at(i, i)) > ACR)
 		{
@@ -654,17 +651,20 @@ int Linear::Matrix<T>::rank () const
 }
 
 template <typename T>
-std::istream& Linear::operator>> (std::istream& stream, Matrix <T>& rhs)
+std::istream& Linear::operator>> (std::istream& stream, Matrix<T>& rhs)
 {
-	if (stream.bad()) throw std::runtime_error("stream error");
-
 	int rows = 0, cols = 0;
-	stream >> rows >> cols;
+	stream >> rows;
+	if (!stream.good()) throw std::runtime_error("stream error: invalid argument");
+
+	stream >> cols;
+	if (!stream.good()) throw std::runtime_error("stream error: invalid argument");
 
 	std::vector <T> tmp (rows * cols);
 	for (T& element : tmp)
 	{
 		stream >> element;
+		if (!stream.good()) throw std::runtime_error("stream error: invalid element");
 	}
 
 	rhs = {rows, cols, tmp};
@@ -681,7 +681,7 @@ std::ostream& Linear::operator<< (std::ostream& stream, const Matrix<T>& rhs)
 template <typename T>
 Linear::Matrix<T> Linear::operator+ (const Matrix<T>& lhs, const Matrix<T>& rhs)
 {
-	Matrix <T> tmp {lhs};
+	Matrix<T> tmp {lhs};
 	tmp += rhs;
 
 	return tmp;
@@ -690,7 +690,7 @@ Linear::Matrix<T> Linear::operator+ (const Matrix<T>& lhs, const Matrix<T>& rhs)
 template <typename T>
 Linear::Matrix<T> Linear::operator- (const Matrix<T>& lhs, const Matrix<T>& rhs)
 {
-	Matrix <T> tmp {lhs};
+	Matrix<T> tmp {lhs};
 	tmp -= rhs;
 
 	return tmp;
@@ -699,7 +699,7 @@ Linear::Matrix<T> Linear::operator- (const Matrix<T>& lhs, const Matrix<T>& rhs)
 template <typename T>
 Linear::Matrix<T> Linear::operator* (const T number, const Matrix<T>& rhs)
 {
-	Matrix <T> tmp {rhs};
+	Matrix<T> tmp {rhs};
 	tmp *= number;
 
 	return tmp;

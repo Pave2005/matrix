@@ -48,7 +48,6 @@ class MatrixBuffer
         MatrixBuffer& operator= (MatrixBuffer&& rhs) noexcept
         {
             swap(rhs);
-
             return *this;
         }
 };

@@ -12,8 +12,6 @@ add_executable(tests
 			   tests.cpp
 			   main.cpp)
 
-target_compile_options(tests PRIVATE -O2)
-
 target_link_libraries(tests
 					  GTest::GTest
 					  GTest::Main)

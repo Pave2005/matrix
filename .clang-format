@@ -1,4 +1,4 @@
-BasedOnStyle: Google
+BasedOnStyle: Microsoft
 IndentWidth: 4
 UseTab: Never
 TabWidth: 4

@@ -34,14 +34,14 @@ namespace Linear
 	}
 
 	template <typename T>
-	class Matrix : private MatrixBuffer<T>
+	class Matrix : private detail::MatrixBuffer<T>
     {
 		private:
 			size_t nRows_ = 0;
             size_t nCols_ = 0;
 
-			using MatrixBuffer<T>::size_;
-			using MatrixBuffer<T>::data_;
+			using detail::MatrixBuffer<T>::size_;
+			using detail::MatrixBuffer<T>::data_;
 
 			void reverse_gauss ();
 
@@ -58,6 +58,8 @@ namespace Linear
 			Matrix (Matrix&& rhs) noexcept;
 
 			~Matrix () = default;
+
+			void swap (Matrix& rhs) noexcept;
 
 			Matrix& operator= (const Matrix& rhs);
 			Matrix& operator= (Matrix&& rhs) noexcept;
@@ -81,10 +83,8 @@ namespace Linear
 
 			void swap_rows (int lhs, int rhs);
 			void add_rows (int src, int dest, T factor);
-			void append_rows (Matrix <T>& additional, bool inFront = false);
 			void swap_cols (int lhs, int rhs);
 			void add_cols (int src, int dest, T factor);
-			void append_cols (Matrix <T>& additional, bool inFront = false);
     		const T* data() const noexcept;
 
 			static Matrix zeros (int n);
@@ -198,7 +198,7 @@ void Linear::Matrix<T>::reverse_gauss ()
 }
 
 template <typename T>
-Linear::Matrix <T>::Matrix (size_t rows, size_t cols, T value) : MatrixBuffer<T>(rows * cols), nRows_(rows), nCols_(cols)
+Linear::Matrix <T>::Matrix (size_t rows, size_t cols, T value) : detail::MatrixBuffer<T>(rows * cols), nRows_(rows), nCols_(cols)
 {
 	for (size_t i = 0; i < size_; ++i)
 	{
@@ -210,7 +210,9 @@ template <typename T>
 template <class InputIt1, class InputIt2>
 Linear::Matrix<T>::Matrix (size_t rows, size_t cols, InputIt1 begin_, InputIt2 end_) : Matrix (rows, cols)
 {
-	size_t size = std::distance(begin_, end_);
+	size_t size = 0;
+	for (InputIt1 itt = begin_; itt != end_; size++, itt++);
+
 	if (size != size_) throw std::invalid_argument("Vector size is not matched with matrix size.");
 
 	for (size_t pos = 0; pos < std::min<size_t>(size_, size); ++pos)
@@ -218,41 +220,37 @@ Linear::Matrix<T>::Matrix (size_t rows, size_t cols, InputIt1 begin_, InputIt2 e
 }
 
 template <typename T>
-Linear::Matrix<T>::Matrix (const Matrix& rhs) : MatrixBuffer<T>(rhs), nRows_(rhs.nRows_), nCols_(rhs.nCols_) {}
+Linear::Matrix<T>::Matrix (const Matrix& rhs) : detail::MatrixBuffer<T>(rhs), nRows_(rhs.nRows_), nCols_(rhs.nCols_) {}
 
 template <typename T>
-Linear::Matrix<T>& Linear::Matrix <T>::operator= (const Matrix& rhs)
+void Linear::Matrix<T>::swap (Matrix& rhs) noexcept
+{
+	std::swap(nRows_, rhs.nRows_);
+	std::swap(nCols_, rhs.nCols_);
+	std::swap(size_, rhs.size_);
+
+	detail::MatrixBuffer<T>::swap(rhs);
+}
+
+template <typename T>
+Linear::Matrix<T>& Linear::Matrix<T>::operator= (const Matrix& rhs)
 {
 	if (this != &rhs)
 	{
 		Matrix tmp {rhs};
-
-		nCols_ = rhs.nCols_;
-		nRows_ = rhs.nRows_;
-		size_  = rhs.size_;
-
-		std::swap(data_, tmp.data_);
+		this->swap(tmp);
 	}
 	return *this;
 }
 
 template <typename T>
-Linear::Matrix<T>::Matrix (Matrix&& rhs) noexcept
-{
-	std::swap(nRows_, rhs.nRows_);
-	std::swap(nCols_, rhs.nCols_);
-	MatrixBuffer <T>::swap(rhs);
-}
+Linear::Matrix<T>::Matrix (Matrix&& rhs) noexcept { this->swap(rhs); }
 
 template <typename T>
 Linear::Matrix<T>& Linear::Matrix <T>::operator= (Matrix&& rhs) noexcept
 {
-	if (this != &rhs)
-	{
-		std::swap(nRows_, rhs.nRows_);
-		std::swap(nCols_, rhs.nCols_);
-		MatrixBuffer <T>::swap(rhs);
-	}
+	if (this != &rhs) this->swap(rhs);
+
 	return *this;
 }
 
@@ -470,27 +468,6 @@ void Linear::Matrix<T>::add_rows (int src, int dest, T factor)
 }
 
 template <typename T>
-void Linear::Matrix<T>::append_rows (Matrix<T>& add_matrix, bool inFront)
-{
-	if (add_matrix.nCols_ != nCols_) throw std::invalid_argument("Colomns numbers do not match.");
-
-    auto matrix_vec = static_cast<std::vector<T>>(*this);
-	auto add_matrix_vec = static_cast<std::vector<T>>(add_matrix);
-	Linear::Matrix <T> result {};
-	if (inFront)
-	{
-		add_matrix_vec.insert(add_matrix_vec.end(), matrix_vec.begin(), matrix_vec.end());
-		result = {nRows_ + add_matrix.nRows_, nCols_, add_matrix_vec};
-	}
-	else
-	{
-		matrix_vec.insert(matrix_vec.end(), add_matrix_vec.begin(), add_matrix_vec.end());
-		result = {nRows_ + add_matrix.nRows_, nCols_, matrix_vec};
-	}
-	*this = result;
-}
-
-template <typename T>
 void Linear::Matrix<T>::swap_cols (int lhs, int rhs)
 {
 	if (lhs >= nCols_ || rhs >= nCols_ || lhs == rhs)
@@ -514,32 +491,6 @@ void Linear::Matrix<T>::add_cols (int src, int dest, T factor)
 	{
 		for (size_t i = 0; i < nRows_; ++i) at(i, dest) += at(i, src) * factor;
 	}
-}
-
-template <typename T>
-void Linear::Matrix<T>::append_cols (Matrix<T>& add_matrix, bool inFront)
-{
-	if (add_matrix.nRows_ != nRows_) throw std::invalid_argument("Rows numbers do not match.");
-
-    transpose();
-    auto matrix_vec = static_cast<std::vector <T>>(*this);
-	auto add_matrix_vec = static_cast<std::vector <T>>(add_matrix);
-	transpose();
-
-	Linear::Matrix<T> result {};
-
-	if (inFront)
-	{
-		add_matrix_vec.insert(add_matrix_vec.end(), matrix_vec.begin(), matrix_vec.end());
-		result = {nCols_ + add_matrix.nCols_, nRows_, add_matrix_vec};
-	}
-	else
-	{
-		matrix_vec.insert(matrix_vec.end(), add_matrix_vec.begin(), add_matrix_vec.end());
-		result = {nCols_ + add_matrix.nCols_, nRows_, matrix_vec};
-	}
-	result.transpose();
-	*this = result;
 }
 
 template <typename T>
@@ -608,7 +559,8 @@ void Linear::Matrix<T>::dump (std::ostream& stream) const
 template <typename T>
 T& Linear::Matrix<T>::at (size_t i, size_t j)
 {
-	return const_cast<T&>(static_cast<const Matrix<T>*>(this)->at(i, j));
+	if (i >= nRows_ || j >= nCols_) throw std::invalid_argument("Incorrect rows/cols number value.");
+	else return data_[i * nCols_ + j];
 }
 
 template <typename T>

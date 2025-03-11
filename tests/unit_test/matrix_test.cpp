@@ -1,38 +1,8 @@
 #include "matrix.h"
-#include "funcs.h"
 
 #include <gtest/gtest.h>
 
-#include <fstream>
-#include <string>
-#include <vector>
-
-TEST(test1, size100)
-{
-	test_funcs::run_test("/test1/size100");
-}
-
-TEST(test2, size150)
-{
-	test_funcs::run_test("/test2/size150");
-}
-
-TEST(test3, size150)
-{
-	test_funcs::run_test("/test3/size150");
-}
-
-TEST(test4, size4)
-{
-	test_funcs::run_test("/test4/size4");
-}
-
-TEST(test5, size100)
-{
-	test_funcs::run_test("/test5/size100");
-}
-
-TEST(test6, copyConstrTest)
+TEST(matrix, copy_ctor)
 {
 	std::vector<double> vec = {1, 2, 3, 4, 6, 7, 8, 12, 1};
 
@@ -47,7 +17,25 @@ TEST(test6, copyConstrTest)
 	}
 }
 
-TEST(test7, equalOpTest)
+TEST(matrix, move_ctor)
+{
+    std::vector<double> vec = {-1, 2, 3, -4, 6, 7, 8, -12, 1};
+
+	Linear::Matrix<double> matrix {3, 3, vec.cbegin(), vec.cend()};
+
+    std::vector<std::vector<double>> data = {};
+    for (size_t i = 0; i < 3; ++i) {
+        std::vector<double> row = {};
+        for (auto j = 0; j < 3; ++j) row.push_back(matrix.at(i, j));
+        data.push_back(row);
+    }
+    Linear::Matrix<double> lhs = std::move(matrix);
+
+    for (size_t i = 0; i < 3; ++i)
+        for (auto j = 0; j < 3; ++j) EXPECT_EQ(data[i][j], lhs.at(i, j));
+}
+
+TEST(matrix, equal_true)
 {
 	std::vector<double> vec = {1, 2, 3, 4, 6, 7, 8, 12, 1};
 
@@ -57,7 +45,7 @@ TEST(test7, equalOpTest)
 	EXPECT_TRUE(matrix_1 == matrix_2);
 }
 
-TEST(test8, unequalOpTest)
+TEST(matrix, equal_false)
 {
 	std::vector<double> vec_1 = {1, 2, 3, 4, 6, 7, 8, 12, 1};
 	std::vector<double> vec_2 = {1, 5, 3, 4, 22, 7, 81, 12, 1};

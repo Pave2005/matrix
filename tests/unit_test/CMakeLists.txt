@@ -13,5 +13,4 @@ target_link_libraries(unit_tests
 
 target_include_directories(unit_tests PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
-enable_testing()
-add_test(NAME Tests COMMAND tests)
+gtest_discover_tests(unit_tests)

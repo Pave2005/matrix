@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iterator>
 #include <vector>
+#include <type_traits>
 
 #include "../mode/mode.h"
 #include "buffer.h"
@@ -27,11 +28,12 @@ enum class Type {
 template <typename T>
 T std_alg(const Linear::Matrix<T> &matrix);
 
-double gauss(const Linear::Matrix<double> &matrix);
+template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
+T gauss(const Linear::Matrix<T> &matrix);
 }  // namespace Determinant
 
 template <typename T>
-class Matrix : private detail::MatrixBuffer<T> {
+class Matrix final : private detail::MatrixBuffer<T> {
    private:
     size_t nRows_ = 0;
     size_t nCols_ = 0;
@@ -75,7 +77,6 @@ class Matrix : private detail::MatrixBuffer<T> {
     void diagonalize();
 
     int direct_gauss();
-    void make_eye();
 
     void swap_rows(int lhs, int rhs);
     void add_rows(int src, int dest, T factor);
@@ -95,7 +96,6 @@ class Matrix : private detail::MatrixBuffer<T> {
     T &at(size_t i, size_t j);
 
     T determinant(Determinant::Type type = Determinant::Type::STD) const;
-    size_t rank() const;
 };
 
 template <typename T>
@@ -148,7 +148,8 @@ T Linear::Determinant::std_alg(const Linear::Matrix<T> &matrix) {
     }
 }
 
-double Linear::Determinant::gauss(const Linear::Matrix<double> &matrix) {
+template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int>>
+T Linear::Determinant::gauss(const Linear::Matrix<T> &matrix) {
     auto shape = matrix.shape();
     int nRows = shape.first;
     int nCols = shape.second;
@@ -375,19 +376,6 @@ int Linear::Matrix<T>::direct_gauss() {
 }
 
 template <typename T>
-void Linear::Matrix<T>::make_eye() {
-    diagonalize();
-
-    size_t columnStartValue = nCols_ - 1;
-    for (int i = std::min<size_t>(nRows_ - 1, columnStartValue); i >= 0; --i) {
-        if (std::fabs(at(i, i)) >= ACR) {
-            T divisor = at(i, i);
-            for (int j = nCols_ - 1; j >= i; --j) at(i, j) /= divisor;
-        }
-    }
-}
-
-template <typename T>
 void Linear::Matrix<T>::swap_rows(int lhs, int rhs) {
     if (lhs == rhs) {
         return;
@@ -502,21 +490,6 @@ T Linear::Matrix<T>::determinant(Determinant::Type type) const {
             throw std::runtime_error("Invalid determinant type.");
             return 0;
     }
-}
-
-template <typename T>
-size_t Linear::Matrix<T>::rank() const {
-    Matrix<T> tmp = *this;
-    tmp.make_eye(false);
-    int ans = 0;
-    for (size_t i = 0; i < std::min<size_t>(nRows_, nCols_); ++i) {
-        if (std::fabs(at(i, i)) > ACR) {
-            ++ans;
-            continue;
-        }
-    }
-
-    return ans;
 }
 
 template <typename T>

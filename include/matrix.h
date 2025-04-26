@@ -28,7 +28,7 @@ enum class Type {
 template <typename T>
 T std_alg(const Linear::Matrix<T> &matrix);
 
-template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
+template <typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
 T gauss(const Linear::Matrix<T> &matrix);
 }  // namespace Determinant
 
@@ -148,7 +148,7 @@ T Linear::Determinant::std_alg(const Linear::Matrix<T> &matrix) {
     }
 }
 
-template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int>>
+template <typename T, typename>
 T Linear::Determinant::gauss(const Linear::Matrix<T> &matrix) {
     auto shape = matrix.shape();
     int nRows = shape.first;
